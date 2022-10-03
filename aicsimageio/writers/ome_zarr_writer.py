@@ -126,6 +126,7 @@ class OmeZarrWriter:
         channel_colors: Optional[List[int]],
         scale_num_levels: int = 1,
         scale_factor: float = 2.0,
+        scale_all: bool = False,
     ) -> None:
         """
         Write a data array to a file.
@@ -158,6 +159,9 @@ class OmeZarrWriter:
         scale_factor: Optional[float]
             The scale factor to use for the image. Only active if scale_num_levels > 1.
             Default: 2.0
+        scale_all: bool
+            If True, don't scale just the XY plane but also the Z dimension.
+            Defaults to False
 
         Examples
         --------
@@ -227,6 +231,7 @@ class OmeZarrWriter:
                 )
             )
         ]
+        lastz = image_data.shape[2]
         lasty = image_data.shape[3]
         lastx = image_data.shape[4]
         # TODO scaler might want to use different method for segmentations than raw
@@ -246,18 +251,22 @@ class OmeZarrWriter:
                             "scale": [
                                 1.0,
                                 1.0,
-                                pixelsizes[0],
+                                (last_scale[2] * scaler.downscale) if scale_all else pixelsizes[0],
                                 last_scale[3] * scaler.downscale,
                                 last_scale[4] * scaler.downscale,
                             ],
                         }
                     ]
                 )
+
+                if scale_all:
+                    lastz = int(math.ceil(lastz / scaler.downscale))
                 lasty = int(math.ceil(lasty / scaler.downscale))
                 lastx = int(math.ceil(lastx / scaler.downscale))
+
                 plane_size = lasty * lastx * image_data.itemsize
                 nplanes_per_chunk = int(math.ceil(target_chunk_size / plane_size))
-                nplanes_per_chunk = min(nplanes_per_chunk, image_data.shape[2])
+                nplanes_per_chunk = min(nplanes_per_chunk, lastz)
                 chunk_dims.append(dict(chunks=(1, 1, nplanes_per_chunk, lasty, lastx)))
         else:
             scaler = None
